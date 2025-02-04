@@ -2,11 +2,10 @@
 
 ## Description
 
-General solver of the non-homogeneous partial differential equation:
-    Alpha(r) U_tt + Beta(r) U_rr + Gamma(r) U_r + Delta(r) U = P(r)
-    
-Implemented only for equations of type:
-    -r^2/F(r) U_tt + r^2 F(r) U_rr + r^2 (2F(r)/r + dF/dr) U_r + L(L+1) U = P(r)
+General solver of the non-homogeneous Partial Differential Equation with singular points:
+![Alt text](General.png)
+Implemented and tested only for equations of form:
+![Alt text](Particular.png)
     
 As long as the Fourier transform of boundary conditions (r = r_0, t) exists. Uses scipy.solve_ivp back-end.
 The solver uses Frobenius method to bypass singular points in the "r" coordinate, even when the solution to the PDE is discontinuous.
