@@ -17,8 +17,8 @@ The solver uses Frobenius method to bypass singular points in the "r" coordinate
 
 ## Usage
 Logic and behavior is documented in the solver file.
-Detailed guide of usage is included in the file "Example.py"
-For testing, "Example.json" contains the exact solution to this problem with: F(r) = 1-2/r, P(r) = 81*r**2, L=1
+Detailed guide of usage is included in "Example.py".
+For testing, "Example.json" contains the exact solution to this problem with: F(r) = 1-2/r, P(r) = 80*r**2, L=1
 Finally, "Example.mw" is a Maple worksheet explaining how to find initial conditions and export the exact solution so that it is read by the solver.
 
 ## Limitations
