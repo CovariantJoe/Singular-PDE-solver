@@ -21,7 +21,3 @@ Detailed guide of usage is included in "Example.py".
 For testing, "Example.json" contains the exact solution to this problem with: F(r) = 1-2/r, P(r) = 80*r**2, L=1
 Finally, "Example.mw" is a Maple worksheet explaining how to find initial conditions and export the exact solution so that it is read by the solver.
 
-## Limitations
-- Scipy.solve_ivp becomes inaccurate for large L ( >= 4)
-- Strange inconsistency when doing the linear combination of 2 independent Frobenius solutions. Sometimes you need to take the complex conjugate of the Frobenius solutions and sometimes you don't. THE CODE HANDLES THIS EMPIRICALLY ACCORDING TO TESTS WITH KNOWN SOLUTIONS, MAY CAUSE INACCURATE SOLUTIONS.
-
