@@ -12,8 +12,6 @@ Implemented and tested only for equations of type:
 As long as the Fourier transform of boundary conditions (r = r_0, t) exists. Uses scipy.solve_ivp back-end.
 The solver uses Frobenius method to bypass singular points in the "r" coordinate, even when the solution to the PDE is discontinuous.
 
-Limitations: See repo or see GeneralPDE.Solve()
-
 Constructor:
 F -> F(r) sympy expression
 P -> P(r) sympy expression
@@ -166,7 +164,7 @@ class GeneralPDE:
             Known limitations:
             - Strange inconsistency when doing the linear combination of 2 independent Frobenius solutions. 
             Sometimes you need to take the complex conjugate of both Frobenius solutions and sometimes you don't, even for the same PDE with different conditions.
-            THE CODE HANDLES THIS EMPIRICALLY ACCORDING TO TESTS WITH KNOWN SOLUTIONS, MAY CAUSE INACCURATE SOLUTIONS.
+            the code handles according to test against known solutions for different metrics, including Hayward.
 
             '''
             if w_val == 0 and (np.isnan(A_h) or np.isnan(B_h)):
