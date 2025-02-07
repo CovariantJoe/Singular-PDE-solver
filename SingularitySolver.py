@@ -12,6 +12,8 @@ Implemented and tested only for equations of type:
 As long as the Fourier transform of boundary conditions (r = r_0, t) exists. Uses scipy.solve_ivp back-end.
 The solver uses Frobenius method to bypass singular points in the "r" coordinate, even when the solution to the PDE is discontinuous.
 
+Limitations: See GeneralPDE.Solve()
+
 Constructor:
 F -> F(r) sympy expression
 P -> P(r) sympy expression
@@ -164,14 +166,15 @@ class GeneralPDE:
             Known limitations:
             - Strange inconsistency when doing the linear combination of 2 independent Frobenius solutions. 
             Sometimes you need to take the complex conjugate of both Frobenius solutions and sometimes you don't, even for the same PDE with different conditions.
-            the code handles according to test against known solutions for different metrics, including Hayward.
-
+            the code handles this empirically according to several tests with known solutions with different F(r).
             '''
+            from sympy import LT,expand
             if w_val == 0 and (np.isnan(A_h) or np.isnan(B_h)):
                 raise Exception("The solution at singularity's left is required with and without source (P(r)) for w_val = 0")
 
             #factorize F(r) to explicitly remove regular singularities 
             num, den = simplify(self.F).as_numer_denom()
+            coef = LT(expand(num)).as_coeff_mul()[1][0]
             pre_exp = 1
             for j in range(len(singularidad)):
                 pre_exp *= (self.r_symbol-singularidad[j])
@@ -179,6 +182,10 @@ class GeneralPDE:
             x = symbols('x')
             F = simplify(pre_exp / den)                
             F = simplify(self.F).subs(simplify(self.F).as_numer_denom()[0],pre_exp)
+            
+            if ( np.abs( lambdify(self.r_symbol,self.F)(0.5) - lambdify(self.r_symbol,F)(0.5) )>1e-3 ):
+                F = -F*coef
+            
             F = F.subs(self.r_symbol,x+sing)
 
 
@@ -252,21 +259,32 @@ class GeneralPDE:
                         Bn[i-1] = np.complex128(value)
                     return An,Bn
 
-            def x_potencia(x,N):
+            def x_potencia(x,N, power = 0):
                 '''
                 Function to perform x^j for j = 1,2..N.
+                It is also used to evaluate x^(complex power) keeping a consistent branch
                 Returns: If x is scalar returns an array with x^j (x^1, x^2 ... x^N). If x is a vector, a matrix composed of the results for the scalar case.
                 '''
+                if power != 0:
+                # Evaluate x^power where power is complex
+                    return np.exp(power*( np.log(np.abs(x)) + np.angle(x)*1j) )
+                
                 if np.size(x) == 1:
-                    xp = np.zeros(N)
-                    for j in range(1,N+1):    
-                        xp[j-1] = x**j
+                    xp = np.zeros(N,dtype="complex128")
+                    for j in range(1,N+1):
+                        if True: #x > 0:
+                            xp[j-1] = x**j
+                        else:
+                            xp[j-1] = np.exp(1j*np.pi*j)*(-x)**j
                     return xp
                 else:
                     xp = np.zeros([len(x),N])
                     for i in range(len(x)):
                         for j in range(1,N+1):
-                            xp[i,j-1] = x[i]**j 
+                            if True: #x[i] > 0:
+                                xp[i,j-1] = x[i]**j
+                            else:
+                                xp[i,j-1] = np.exp(1j*np.pi*j)*(-x[i])**j
                     return xp
                 
             def Sumatoria(coefs,x,N):
@@ -294,8 +312,8 @@ class GeneralPDE:
                 if float(int(np.abs(r1-r2))) == round(np.abs(r1-r2),13) and np.abs(r1-r2) != 0:
                     raise Exception("The Frobenius indicial equation roots differ by an integer, this case is not supported. This depends only on the form of F(r).")
                 elif np.abs(r1-r2) > 1e-13:
-                    y = x**r1 *(1 + Sumatoria(coefficients,x,N))
-                    yp = x**(r1-1)*(r1*(1 + Sumatoria(coefficients,x,N)) + Sumatoria(np.arange(1,N+1,1)*coefficients,x,N) )
+                    y = x_potencia(x,0,r1) * (1 + Sumatoria(coefficients,x,N))
+                    yp = x_potencia(x,0,r1-1)*(r1*(1 + Sumatoria(coefficients,x,N)) + Sumatoria(np.arange(1,N+1,1)*coefficients,x,N) )
                 elif np.abs(r1-r2) < 1e-13 and np.abs(r1) < 1e-13:
                     y1 = (1+Sumatoria(coefficients,x,N))
                     y1p = (Sumatoria(np.arange(1,N+1,1)*coefficients,x,N))/x
@@ -305,14 +323,14 @@ class GeneralPDE:
                 else: 
                     raise Exception ("The roots of the indicial equation are equal but not to zero, this is not implemented. This depends only on the form of F(r).")
                 return [y,yp]
-                
+            
             n, k = symbols('n k')
             a = Function('a') # place holder
             P = Function('P'); Q = Function('Q') # Will become mathematical expressions for P and Q
             P_vals, Q_vals = Taylors(N+1,l_val,w_val) # Taylor expansion of P and Q near x = 0
             sign = np.sign(F.subs(x,-x0)) # Changes the second solution depending on the sign of F near the singularity
             r1,r2 = r()
-
+            
             # Both independent solutions y1,y2 to the ODE are constructed according to whether or not the roots are equal (to zero) or they are different to each other.
             if np.abs(r1-r2) > 1e-13:
                 coefs_r1 = Series(r1,N)
@@ -324,22 +342,28 @@ class GeneralPDE:
                 Call = lambda x: Solution(x,r1,r2,coefs_r1,coefs_r2,sign)
                 y1 = lambda x: Call(x)[0]
                 y2 = lambda x: Call(x)[1]
-
+            
             # Find the constants in: y(x) = C1*y1(x) + C2*y2(x) by requiring y(x) to be the known Runge Kuta solution at x = x0.
-            # Most times you need to use the conjugate of y1, y2 (C1, C2) but sometimes you don't (C3, C4), even for the exact same PDE with different initial conditions. This is still mysterious.
+            # Some times you need to use the conjugate of y1, y2 (C1, C2) and sometimes you don't (C3, C4), even for the exact same PDE with different initial conditions. This is still mysterious, but the choice below works for every case tested.
             C1,C2 = np.linalg.solve(np.matrix([[np.conjugate(y1(x0)[0]),np.conjugate(y2(x0)[0])],[np.conjugate(y1(x0)[1]),np.conjugate(y2(x0)[1])]]),[A,B])
-            C3,C4 = np.linalg.solve(np.matrix([[y1(x0)[0],y2(x0)[0]],[y1(x0)[1],y2(x0)[1]]]),[A,B])                
-
-            # Empirical decision to use C1,C2 or C3,C4. See just above. 
-            if w_val != 0:        
-                if np.abs( np.angle(A)/np.angle(C3*y1(-x0)[0] + C4*y2(-x0)[0]  ) -1) > 5e-2:
-                    sol = lambda x: np.complex128(C3*y1(x)[0] + C4*y2(x)[0])
-                    sol_deriv = lambda x: np.complex128(C3*y1(x)[1] + C4*y2(x)[1])
-                else:
-                    print("WARNING: Using the Frobenius solution in a different way, this doesn't happen too often, see code.")
+            C3,C4 = np.linalg.solve(np.matrix([[y1(x0)[0],y2(x0)[0]],[y1(x0)[1],y2(x0)[1]]]),[A,B])
+            
+            # Decision to use C1,C2 or C3,C4. See just above.
+            if w_val != 0:   
+                valA = np.abs(np.angle(A) - np.angle(C3*y1(x0)[0]*np.exp(np.pi*1j*r1) + C4*y2(x0)[0]*np.exp(np.pi*1j*r2) )); valB = np.abs( 2*np.angle(A) - np.angle(C3*y1(-x0)[0] + C4*y2(-x0)[0]) - np.angle(C3*y1(x0)[0]*np.exp(np.pi*1j*r1) + C4*y2(x0)[0]*np.exp(np.pi*1j*r2) )  )                
+                if (np.abs(C1/C3-1) < 1e-2 and np.abs(np.angle(C1/C3)) < 1e-5) or (np.abs(C1/C4-1) < 1e-2 and np.abs(np.angle(C1/C4)) < 1e-5):
                     sol = lambda x: np.complex128(C1*np.conjugate(y1(x)[0]) + C2*np.conjugate(y2(x)[0]))
                     sol_deriv = lambda x: np.complex128(C1*np.conjugate(y1(x)[1]) + C2*np.conjugate(y2(x)[1]))
-
+                elif  valA < 1e-2 or np.abs(valA-2*np.pi) < 1e-3 or np.abs(valA - valB) < 1e-2:
+                    sol = lambda x: np.complex128(C3*y1(x)[0] + C4*y2(x)[0])
+                    sol_deriv = lambda x: np.complex128(C3*y1(x)[1] + C4*y2(x)[1])
+        
+                elif  valB < 1e-3 or np.abs(valB-2*np.pi) < 1e-3:
+                    sol = lambda x: np.complex128(C3*y1(-x)[0]*np.exp(np.pi*1j*r1) + C4*y2(-x)[0]*np.exp(np.pi*1j*r2))
+                    sol_deriv = lambda x: np.complex128(-C3*y1(-x)[1]*np.exp(np.pi*1j*r1) - C4*y2(-x)[1]*np.exp(np.pi*1j*r2))
+                else:
+                    raise Exception("The way to combine Frobenius solutions could not be determined")
+            
             # This part of the code calculates the integrals in the variation of parameters method to construct the solution to the non-homogeneous problem from the Frobenius ones which are only for homogeneous ODEs.    
             # The integrals are solved numerically integrating from x0 to -x0, which includes the singular point x = 0. Scipy.quad can handle this unless the value printed on screen isn't small.    
             # Notice how the source term has P(x)/(F(x)*r**2) instead of P(x), this is because we got the Frobenius solutions from x**2*y(x)'' + x*P(x)y(x)' + Q(x)y(x), after dividing everything by the original factor in y''.
@@ -376,56 +400,53 @@ class GeneralPDE:
         if len(domain_sing) == 0:
             print("No singularities in the domain, proceeding")
         
+        sol_deriv = []
         for i in range(len(freq)):
             frec = freq[i]
-            print("Solving for the frequency: ",frec)
-            # If you know how the solution for the negative freq will be, you can remove the "and False" and uncomment below to avoid solving for the same frequency but negative
-            if frec < 0 and frec in -np.array(freq) and False:
-                continue
+            if len(freq) > 1:
+                print("Solving for the frequency: ",frec)
+            
+            if np.isnan(Homogeneous_Cond).any():
+                raise Exception("To bypass the singularity you need the initial conditions to the problem removing the source term P(r).")
+            cond0 = [u0[i],u0p[i]]
+            section_solution = []
+            
+            if len(domain_sing) == 0:
+                try:
+                    rk_sol = solve_ivp(ODE,[r[0],r[-1]],[cond0[0],cond0[1]],method=method,dense_output=True,max_step=max_step,atol=1e-12,rtol=1e-8)
+                    section_solution.append(rk_sol.sol(r)[0,:])
+                    sol_deriv.append(rk_sol.sol(r[-1])[1])
+                except ValueError:
+                    raise Exception("No singularities were found, but scipy.solve_ivp couldn't return correctly, maybe the roots (singularities) in F(r) are failing to be detected")
             else:
-                if np.isnan(Homogeneous_Cond).any():
-                    raise Exception("To bypass the singularity you need the initial conditions to the problem removing the source term P(r).")
-                cond0 = [u0[i],u0p[i]]
-                section_solution = []
-                sol_deriv = []
-                if len(domain_sing) == 0:
-                    try:
-                        rk_sol = solve_ivp(ODE,[r[0],r[-1]],[cond0[0],cond0[1]],method=method,dense_output=True,max_step=max_step,atol=1e-12,rtol=1e-8)
-                        section_solution.append(rk_sol.sol(r)[0,:])
-                        sol_deriv.append(rk_sol.sol(r[-1])[1])
-                    except ValueError:
-                        raise Exception("No singularities were found, but scipy.solve_ivp couldn't return correctly, maybe the roots (singularities) in F(r) are failing to be detected")
-                else:
-                    for count in range(0,len(domain_sing)+1):
-                        if count != len(domain_sing):
-                            sing = domain_sing[count]
-                            rsolve = r[np.logical_and(r<sing, r>domain_sing[count-1])] if count !=0 else r[r<sing] 
-                            rmin = 1e-7
-                            r1 = sing - rmin
-                            if frec != 0:
-                                Homogenea = 1
-                                rk_sol = solve_ivp(ODE,[rsolve[0],rsolve[-1]],[cond0[0],cond0[1]],method=method,dense_output=True,max_step=max_step,atol=1e-12,rtol=1e-8) if r1 < rsolve[-1] else solve_ivp(ODE,[rsolve[0],r1],[cond0[0],cond0[1]],method=method, dense_output=True,max_step=max_step,atol=1e-12,rtol=1e-8)
-                                cond0 = Frobenius(self,9,w_val = frec, l_val = self.L,x0 =-rmin,A= rk_sol.sol(r1)[0],B = rk_sol.sol(r1)[1])
-                            else:
-                                Homogenea = 0
-                                rk_sol = solve_ivp(ODE,[rsolve[0],rsolve[-1]],[cond0[0],cond0[1]],method=method,dense_output=True,max_step=max_step,atol=1e-12,rtol=1e-8) if r1 < rsolve[-1] else solve_ivp(ODE,[rsolve[0],r1],[cond0[0],cond0[1]],method=method, dense_output=True,max_step=max_step,atol=1e-12,rtol=1e-8)      
-                                cond0 = Frobenius(self,9,w_val = frec, l_val = self.L,x0 =-rmin,A = 0, B = 0,A_h=rk_sol.sol(r1)[0] ,B_h=rk_sol.sol(r1)[1] )             
-
-                            section_solution.append(rk_sol.sol(rsolve)[0,:])
-                            sol_deriv.append(rk_sol.sol(rsolve[-1])[1])
+                for count in range(0,len(domain_sing)+1):
+                    if count != len(domain_sing):
+                        sing = domain_sing[count]
+                        rsolve = r[np.logical_and(r<sing, r>domain_sing[count-1])] if count !=0 else r[r<sing] 
+                        rmin = 1e-7
+                        r1 = sing - rmin
+                        if frec != 0:
+                            Homogenea = 1
+                            rk_sol = solve_ivp(ODE,[rsolve[0],rsolve[-1]],[cond0[0],cond0[1]],method=method,dense_output=True,max_step=max_step,atol=1e-12,rtol=1e-8) if r1 < rsolve[-1] else solve_ivp(ODE,[rsolve[0],r1],[cond0[0],cond0[1]],method=method, dense_output=True,max_step=max_step,atol=1e-12,rtol=1e-8)
+                            cond0 = Frobenius(self,2*self.L+3,w_val = frec, l_val = self.L,x0 =-rmin,A= rk_sol.sol(r1)[0],B = rk_sol.sol(r1)[1])
                         else:
-                            r0 = np.max([r1,rsolve[-1]])
-                            rsolve = r[np.logical_and(r>sing,r<domain_sing[count+1])] if count <= len(domain_sing)-2 else r[r>sing]
-                            if len(rsolve) == 0:
-                                continue
+                            Homogenea = 0
+                            rk_sol = solve_ivp(ODE,[rsolve[0],rsolve[-1]],[cond0[0],cond0[1]],method=method,dense_output=True,max_step=max_step,atol=1e-12,rtol=1e-8) if r1 < rsolve[-1] else solve_ivp(ODE,[rsolve[0],r1],[cond0[0],cond0[1]],method=method, dense_output=True,max_step=max_step,atol=1e-12,rtol=1e-8)      
+                            cond0 = Frobenius(self,2*self.L+3,w_val = frec, l_val = self.L,x0 =-rmin,A = 0, B = 0, A_h=rk_sol.sol(r1)[0] ,B_h=rk_sol.sol(r1)[1] )             
 
-                            # Initial condition in the next section = what Frobenius() returned
-                            rk_sol = solve_ivp(ODE,[2*sing-r0,rsolve[-1]],[cond0[0],cond0[1]],method=method,dense_output=True,max_step=max_step)
-                            section_solution.append(rk_sol.sol(rsolve)[0,:])
-                            sol_deriv.append(rk_sol.sol(rsolve[-1])[1])
-                  
-                sol_ode[:,i] = np.hstack(section_solution)
-                # When the initial condition of the negative frequency is the complex conjugate of the corresponding positive one, this can be done instead of solving for it (negative freq solution = positive freq solution rotated 90° in complex plane)
-                #sol_ode[:,2] = np.abs(sol_ode[:,1])*np.exp(1j*(np.angle(sol_ode[:,1]) + np.pi/2))
+                        section_solution.append(rk_sol.sol(rsolve)[0,:])
+                        #sol_deriv.append(rk_sol.sol(rsolve[-1])[1])
+                    else:
+                        r0 = np.max([r1,rsolve[-1]])
+                        rsolve = r[np.logical_and(r>sing,r<domain_sing[count+1])] if count <= len(domain_sing)-2 else r[r>sing]
+                        if len(rsolve) == 0:
+                            continue
+
+                        # Initial condition in the next section = what Frobenius() returned
+                        rk_sol = solve_ivp(ODE,[2*sing-r0,rsolve[-1]],[cond0[0],cond0[1]],method=method,dense_output=True,max_step=max_step)
+                        section_solution.append(rk_sol.sol(rsolve)[0,:])
+                        sol_deriv.append(rk_sol.sol(rsolve[-1])[1])
+              
+            sol_ode[:,i] = np.hstack(section_solution)
         sol_pde = self.FourierInv(r,t, sol_ode,freq)
         return sol_pde, sol_ode, sol_deriv

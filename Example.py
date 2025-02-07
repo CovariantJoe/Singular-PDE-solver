@@ -1,7 +1,7 @@
 '''
 @author: Covariant Joe
 
-This code provides an example about how to use the module SingularitySolver with a solution for the Schwarzschild metric
+This code provides an example about the use of the module SingularitySolver with a solution for the Schwarzschild metric
 '''
 
 # Imports
@@ -18,10 +18,10 @@ r = symbols('r')
 
 # Define F(r) and P(r) as sympy expressions of the symbol 'r'
 
-F = 1-2/r
-P = 80*r**2
+F = 1-2/r # Schwarzschild line element function
+P = 80*r**2 # RHS of PDE
 
-# Define L (angular index) as a positive integer, less than 4 for accuracy
+# Define L (angular index) as a positive integer, less than 4 due to scipy.solve_ivp accuracy limitations
 L = 1
 
 # Initialize an instance of the Partial Differencial Equation object:
@@ -46,9 +46,9 @@ Conditions = [ [0,0.7071067811865476,-0.7071067811865476] , [11063.21645 + 374.6
 # The third argument is the name of Scipy's runge kuta method (see Scipy doc), "DOP853" is an 8th order explicit solver which is the best usually. Some Scipy methods don't work with complex boundary conditions.
 # max_step is the argument for Scipy's solver (see Scipy doc), default is np.inf (chosen by the solver)
 # Homogeneous_Cond is required to use the Frobrenius method (solving with singularities), it is the following: the Fourier transform of the boundary condition (WITH FREQUENCY = 0) to the same problem when the source is zero (that is, taking P(r) = 0) 
-# In all my testing with Maple, this is usually 0 for both U and dU/dr (thus [0,0])
+# This is 0 for both U and dU/dr (thus [0,0]) because a solution to the homogeneous PDE is in fact just 0
 
-Solution = Problem.Solve(r_vec,t_vec,Conditions, method = "DOP853", max_step = np.inf, Homogeneous_Cond=[0,0])[1:]
+Solution = Problem.Solve(r_vec,t_vec,Conditions, method = "DOP853", max_step = 1e-4, Homogeneous_Cond=[0,0])[0]
 # The first element is what we are interested in, the other values returned are useful for finding which frequencies are introducing error in your solution, or to solve in parallel the whole problem
 
 # Access the exact solution for plotting, need to pass a time vector where the sol. will be evaluated
@@ -57,7 +57,7 @@ error = np.abs(Analytic)/np.abs(Solution) # Matrix with error, make sure Analyti
 print("Finished. Max error: " + str(round(100*np.abs(1-np.max(error)),3)) + " %")
 
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# A bunch of code just to plot. Change the value below to the position of your singularity
+# A bunch of code just to plot. Change the value below to match the position of your singularity
 Singularity = 2
 Index = np.argmin(np.abs(r_vec - Singularity))
 T,R = np.meshgrid(t_vec,r_vec[:Index-1])
