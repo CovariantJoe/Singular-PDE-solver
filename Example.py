@@ -1,7 +1,8 @@
 '''
 @author: Covariant Joe
 
-This code provides an example about the use of the module SingularitySolver with a solution for the Schwarzschild metric
+This code provides an example of the use of the module SingularitySolver with a solution for the Schwarzschild metric. This exact solution was published in:
+E. Avila-Vargas, C. Moreno, and R. Hernández-Jiménez, Journal of Mathematical Physics 64 (2023).
 '''
 
 # Imports
