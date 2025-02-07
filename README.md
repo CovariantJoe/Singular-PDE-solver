@@ -18,5 +18,5 @@ The solver uses Frobenius method to bypass singular points in the "r" coordinate
 
 ## Usage
 - Documentation is in the solver file SingularitySolver.py.
-- A complete example for the Schwarzschild metric (which has an analytical solution to compare: E. Avila-Vargas, C. Moreno, and R. Hernández-Jiménez, Journal of Mathematical Physics 64 (2023).) is in Example.py. Example.json Contains the exact solution to this problem. Example.mw is a Maple worksheet explaining how to find initial conditions and export the exact solution so that it is read by the solver.
+- A complete example for the Schwarzschild metric (which has an analytical solution to compare: E. Avila-Vargas, C. Moreno, and R. Hernández-Jiménez, Journal of Mathematical Physics 64 (2023).) is in Example.py. The file Example.json contains this exact solution. Example.mw is a Maple worksheet explaining how to find initial conditions and export the exact solution to JSON so that it is read by the solver.
 - Article.py contains the code to replicate the results in our article. This file is computationally expensive.
