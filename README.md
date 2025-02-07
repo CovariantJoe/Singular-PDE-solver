@@ -1,6 +1,7 @@
 # Wave-like equation solver for singular spacetimes
 
 ## Description
+This code was used in the article "Back-reaction spacetime waves from a radially varying mass in a Hayward black hole"
 
 General solver of the non-homogeneous Partial Differential Equation with singular points:
 ![Alt text](General.png)
@@ -16,8 +17,6 @@ The solver uses Frobenius method to bypass singular points in the "r" coordinate
 - Can read a JSON file containing the exact solution to the problem, if known, in order to facilitate testing. This file can be generated in Maple. Schwarzschild exact solutions can often be found.
 
 ## Usage
-Logic and behavior is documented in the solver file.
-Detailed guide of usage is included in "Example.py".
-For testing, "Example.json" contains the exact solution to this problem with: F(r) = 1-2/r, P(r) = 80*r**2, L=1
-Finally, "Example.mw" is a Maple worksheet explaining how to find initial conditions and export the exact solution so that it is read by the solver.
-
+- Documentation is in the solver file SingularitySolver.py.
+- A complete example for the Schwarzschild metric (which has an analytical solution to compare: E. Avila-Vargas, C. Moreno, and R. Hernández-Jiménez, Journal of Mathematical Physics 64 (2023).) is in Example.py. Example.json Contains the exact solution to this problem. Example.mw is a Maple worksheet explaining how to find initial conditions and export the exact solution so that it is read by the solver.
+- Article.py contains the code to replicate the results in our article. This file is computationally expensive.
